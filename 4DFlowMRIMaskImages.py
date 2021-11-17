@@ -14,9 +14,28 @@ class FlowMRIMaskImages():
 		print ("--- Loading Surface File:%s"%self.Args.InputSurface)
 		Surface=ReadVTPFile(self.Args.InputSurface)
 
+		#Convert DICOM to VTI
+		FileList = os.listdir(self.Args.InputFolder4DMRI)
+		Nfiles = len(FileList)
+		for i in range (0,Nfiles):
+			if os.path.isdir ("%s/%s"%(self.Args.InputFolder4DMRI,FileList[i])) == 1:
+				print ("--- Converting DICOM files to VTI:%s"%FileList[i])
+				CycleList = os.listdir("%s/%s"%(self.Args.InputFolder4DMRI,FileList[i]))
+				Ncycles = len(CycleList)
+				for j in range (0,Ncycles):
+					AngioConvert = vtk.vtkDICOMImageReader()
+					AngioConvert.SetDirectoryName("%s/%s/%s"%(self.Args.InputFolder4DMRI,FileList[i],CycleList[j]))
+					AngioConvert.Update()	
+
+					#Write Unmasked VTI File
+					print ("--- Writing Unmasked VTI File:%s/%s/%s"%(self.Args.InputFolder4DMRI,FileList[i],CycleList[j]))
+					WriteVTIFile ("%s/%s/%s/RawImage_%s.vti"%(self.Args.InputFolder4DMRI,FileList[i],CycleList[j],CycleList[j]),AngioConvert.GetOutput())
+			else:
+				continue
+		# FIX: Issues with volume & model registration
 		#Load the Angiography Images
-		print ("--- Loading Angiography Image:%s"%self.Args.InputFileAngio)
-		AngioImages=ReadVTIFile(self.Args.InputFileAngio)	
+		print ("--- Loading Angiography Image: RawImage.vti")
+		AngioImages = ReadVTIFile("%s/%s/%s/RawImage_%s.vti"%(self.Args.InputFolder4DMRI,FileList[i],CycleList[j],CycleList[j]))	
 
 		#Mask the Angio Image using the 3D Model
 		print ("--- Create a Masking Function Using the Images")
@@ -28,7 +47,7 @@ class FlowMRIMaskImages():
 		
 		#Save the VTI File 
 		print ("--- Write the VTI File")
-		WriteVTIFile("abc.vti",AngioImages)	
+		WriteVTIFile("%s/%s/%s/%s.vti"%(self.Args.InputFolder4DMRI,FileList[i],CycleList[j],CycleList[j]),AngioImages)	
 	
 	def ApplyMaskToImage(self,AngioImages,MaskingFunction):
 		Npts=AngioImages.GetNumberOfPoints()
@@ -37,7 +56,7 @@ class FlowMRIMaskImages():
 				AngioImages.GetPointData().GetArray("Scalars_").SetValue(i,1000000)
 			else:
 				counter+=1
-		return AngioImages
+			return AngioImages
 
 	def MaskingFunction(self,AngioImages,Surface):
 		
@@ -50,7 +69,7 @@ class FlowMRIMaskImages():
 			point_=AngioImages.GetPoint(i)
 			ImagePoints.InsertNextPoint(point_[0],point_[1],point_[2])
 
-		#Createa a vtk point data function to store the point data
+		#Create a a vtk point data function to store the point data
 		ImagePointsVTK=vtk.vtkPolyData()
 		ImagePointsVTK.SetPoints(ImagePoints)
 	
@@ -61,16 +80,16 @@ class FlowMRIMaskImages():
 		selectEnclosed.SetSurfaceData(Surface)
 		selectEnclosed.Update()		
 
-		return selectEnclosed 
+		return selectEnclosed
 
 if __name__=="__main__":
         #Description
 	parser = argparse.ArgumentParser(description="This script will mask the Aniography, Magnitude and Phase images using the 3D surface model segmented in SimVascular")
 
-	parser.add_argument('-InputFolder4DMRI', '--InputFolder4DMRI', type=str, required=False, dest="MagnitudeFolder",help="The foldername that contains the 4DFlow Magnitude, Phase1, Phase2 and Phase3 images in dicom format")
+	parser.add_argument('-InputFolder4DMRI', '--InputFolder4DMRI', type=str, required=True, dest="InputFolder4DMRI",help="The foldername that contains the 4DFlow Magnitude, Phase1, Phase2 and Phase3 images in dicom format")
 
 	#Provide a path to the Angio images
-	parser.add_argument('-InputFileAngio', '--InputFileAngio', type=str, required=True, dest="InputFileAngio",help="The filename that contains the Angio images in vti format")
+	parser.add_argument('-InputFileAngio', '--InputFileAngio', type=str, required=False, dest="InputFileAngio",help="The filename that contains the Angio images in vti format")
 
 	#Provide a path to the surface file segmented from the angio images
 	parser.add_argument('-InputSurface', '--InputSurface', type=str, required=True, dest="InputSurface",help="The surface file that contains the model segmented from Angio images (likely in SimVascular)")
